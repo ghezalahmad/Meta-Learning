@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Configure Meta-Learning</title>
+    <style>
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section label {
+            font-weight: bold;
+        }
+        select, input, button {
+            margin: 10px 0;
+            padding: 5px;
+        }
+    </style>
+    <script>
+        function updateTargetOptions() {
+            const inputColumns = Array.from(document.getElementById('input_columns').selectedOptions).map(option => option.value);
+            const targetSelect = document.getElementById('target_columns');
+            const allColumns = Array.from(targetSelect.options).map(option => option.value);
+
+            // Enable only columns not in inputColumns
+            targetSelect.innerHTML = ""; // Clear current options
+            allColumns.forEach(column => {
+                if (!inputColumns.includes(column)) {
+                    const option = document.createElement('option');
+                    option.value = column;
+                    option.textContent = column;
+                    targetSelect.appendChild(option);
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Configure Meta-Learning Optimization</h1>
+    <form action="/configure" method="post">
+        <input type="hidden" name="file_path" value="{{ file_path }}">
+
+        <div class="form-section">
+            <label for="input_columns">Materials Data (Input) (select one column at least):</label><br>
+            <select id="input_columns" name="input_columns" multiple size="10" onchange="updateTargetOptions()" required>
+                {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-section">
+            <label for="target_columns">Target Properties (select one column at least):</label><br>
+            <select id="target_columns" name="target_columns" multiple size="10" required>
+                {% for column in columns %}
+                <option value="{{ column }}">{{ column }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-section">
+            <label for="optimization">Optimization:</label><br>
+            <input type="radio" name="optimization" value="maximize" checked> Maximize
+            <input type="radio" name="optimization" value="minimize"> Minimize
+        </div>
+
+        <div class="form-section">
+            <label for="weight">Weight:</label><br>
+            <input type="number" id="weight" name="weight" step="0.1" value="1.0">
+        </div>
+
+        <div class="form-section">
+            <label for="threshold">Threshold:</label><br>
+            <input type="text" id="threshold" name="threshold" placeholder="Optional">
+        </div>
+
+        <div class="form-section">
+            <label for="curiosity">Curiosity (to control the weight of model uncertainty on predicted utility):</label><br>
+            <input type="range" id="curiosity" name="curiosity" min="0" max="1" step="0.01" value="0.0">
+            <span id="curiosity_value">0.0</span>
+        </div>
+
+        <div class="form-section">
+            <label for="explore_exploit">Explore or Exploit:</label><br>
+            <input type="radio" name="explore_exploit" value="explore"> Explore
+            <input type="radio" name="explore_exploit" value="exploit" checked> Exploit
+        </div>
+
+        <button type="submit">Run Meta-Learning with Configuration</button>
+    </form>
+
+    <script>
+        // Update curiosity value display dynamically
+        const curiosityInput = document.getElementById('curiosity');
+        const curiosityValue = document.getElementById('curiosity_value');
+        curiosityInput.addEventListener('input', () => {
+            curiosityValue.textContent = curiosityInput.value;
+        });
+    </script>
+</body>
+</html>
