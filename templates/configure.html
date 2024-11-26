@@ -1,99 +1,94 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Configure Meta-Learning</title>
-    <style>
-        .form-section {
-            margin-bottom: 20px;
-        }
-        .form-section label {
-            font-weight: bold;
-        }
-        select, input, button {
-            margin: 10px 0;
-            padding: 5px;
-        }
-    </style>
-    <script>
-        function updateTargetOptions() {
-            const inputColumns = Array.from(document.getElementById('input_columns').selectedOptions).map(option => option.value);
-            const targetSelect = document.getElementById('target_columns');
-            const allColumns = Array.from(targetSelect.options).map(option => option.value);
+{% extends "base.html" %}
 
-            // Enable only columns not in inputColumns
-            targetSelect.innerHTML = ""; // Clear current options
-            allColumns.forEach(column => {
-                if (!inputColumns.includes(column)) {
-                    const option = document.createElement('option');
-                    option.value = column;
-                    option.textContent = column;
-                    targetSelect.appendChild(option);
-                }
-            });
-        }
-    </script>
-</head>
-<body>
-    <h1>Configure Meta-Learning Optimization</h1>
-    <form action="/configure" method="post">
-        <input type="hidden" name="file_path" value="{{ file_path }}">
+{% block title %}Configure Optimization{% endblock %}
 
-        <div class="form-section">
-            <label for="input_columns">Materials Data (Input) (select one column at least):</label><br>
-            <select id="input_columns" name="input_columns" multiple size="10" onchange="updateTargetOptions()" required>
-                {% for column in columns %}
-                <option value="{{ column }}">{{ column }}</option>
-                {% endfor %}
-            </select>
+{% block content %}
+<h1 class="text-center">Configure Meta-Learning</h1>
+<p class="text-center">Set your input, target properties, and optimization preferences.</p>
+
+<form action="/configure" method="post" class="mt-4">
+    <input type="hidden" name="file_path" value="{{ file_path }}">
+
+    <div class="mb-3">
+        <label for="input_columns" class="form-label">Select Input Features:</label>
+        <select id="input_columns" name="input_columns" multiple size="10" class="form-select" onchange="updateTargetOptions()" required>
+            {% for column in columns %}
+            <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+        </select>
+        <small class="form-text text-muted">Hold Ctrl (Cmd on Mac) to select multiple features.</small>
+    </div>
+
+    <div class="mb-3">
+        <label for="target_columns" class="form-label">Select Target Properties:</label>
+        <select id="target_columns" name="target_columns" multiple size="10" class="form-select" required>
+            {% for column in columns %}
+            <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Optimization Goal:</label>
+        <div>
+            <input type="radio" id="maximize" name="optimization" value="maximize" checked>
+            <label for="maximize">Maximize</label>
         </div>
-
-        <div class="form-section">
-            <label for="target_columns">Target Properties (select one column at least):</label><br>
-            <select id="target_columns" name="target_columns" multiple size="10" required>
-                {% for column in columns %}
-                <option value="{{ column }}">{{ column }}</option>
-                {% endfor %}
-            </select>
+        <div>
+            <input type="radio" id="minimize" name="optimization" value="minimize">
+            <label for="minimize">Minimize</label>
         </div>
+    </div>
 
-        <div class="form-section">
-            <label for="optimization">Optimization:</label><br>
-            <input type="radio" name="optimization" value="maximize" checked> Maximize
-            <input type="radio" name="optimization" value="minimize"> Minimize
+    <div class="mb-3">
+        <label for="weight" class="form-label">Weight:</label>
+        <input type="number" id="weight" name="weight" step="0.1" class="form-control" value="1.0">
+    </div>
+
+    <div class="mb-3">
+        <label for="curiosity" class="form-label">Curiosity:</label>
+        <input type="range" id="curiosity" name="curiosity" min="0" max="1" step="0.01" value="0.0" class="form-range">
+        <span id="curiosity_value" class="badge bg-secondary">{{ curiosity }}</span>
+    </div>
+
+    <div class="mb-3">
+        <label for="explore_exploit" class="form-label">Explore or Exploit:</label>
+        <div>
+            <input type="radio" id="explore" name="explore_exploit" value="explore">
+            <label for="explore">Explore</label>
         </div>
-
-        <div class="form-section">
-            <label for="weight">Weight:</label><br>
-            <input type="number" id="weight" name="weight" step="0.1" value="1.0">
+        <div>
+            <input type="radio" id="exploit" name="explore_exploit" value="exploit" checked>
+            <label for="exploit">Exploit</label>
         </div>
+    </div>
 
-        <div class="form-section">
-            <label for="threshold">Threshold:</label><br>
-            <input type="text" id="threshold" name="threshold" placeholder="Optional">
-        </div>
+    <button type="submit" class="btn btn-primary w-100">Run Meta-Learning</button>
+</form>
 
-        <div class="form-section">
-            <label for="curiosity">Curiosity (to control the weight of model uncertainty on predicted utility):</label><br>
-            <input type="range" id="curiosity" name="curiosity" min="0" max="1" step="0.01" value="0.0">
-            <span id="curiosity_value">0.0</span>
-        </div>
+<script>
+    function updateTargetOptions() {
+        const inputColumns = Array.from(document.getElementById('input_columns').selectedOptions).map(option => option.value);
+        const targetSelect = document.getElementById('target_columns');
+        const allColumns = Array.from(targetSelect.options).map(option => option.value);
 
-        <div class="form-section">
-            <label for="explore_exploit">Explore or Exploit:</label><br>
-            <input type="radio" name="explore_exploit" value="explore"> Explore
-            <input type="radio" name="explore_exploit" value="exploit" checked> Exploit
-        </div>
-
-        <button type="submit">Run Meta-Learning with Configuration</button>
-    </form>
-
-    <script>
-        // Update curiosity value display dynamically
-        const curiosityInput = document.getElementById('curiosity');
-        const curiosityValue = document.getElementById('curiosity_value');
-        curiosityInput.addEventListener('input', () => {
-            curiosityValue.textContent = curiosityInput.value;
+        // Update target options dynamically
+        targetSelect.innerHTML = ""; // Clear current options
+        allColumns.forEach(column => {
+            if (!inputColumns.includes(column)) {
+                const option = document.createElement('option');
+                option.value = column;
+                option.textContent = column;
+                targetSelect.appendChild(option);
+            }
         });
-    </script>
-</body>
-</html>
+    }
+
+    // Update curiosity display dynamically
+    const curiosityInput = document.getElementById('curiosity');
+    const curiosityValue = document.getElementById('curiosity_value');
+    curiosityInput.addEventListener('input', () => {
+        curiosityValue.textContent = curiosityInput.value;
+    });
+</script>
+{% endblock %}

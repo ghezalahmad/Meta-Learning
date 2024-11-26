@@ -1,16 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Dataset</title>
-</head>
-<body>
-    <h1>Upload Your Dataset</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <label for="file">Choose CSV file:</label>
-        <input type="file" id="file" name="file" accept=".csv" required>
-        <button type="submit">Upload</button>
-    </form>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Upload Dataset{% endblock %}
+
+{% block content %}
+<h1 class="text-center">Welcome to the Meta-Learning App</h1>
+<p class="text-center">Optimize and analyze materials using advanced meta-learning techniques.</p>
+
+<form action="/upload" method="post" enctype="multipart/form-data" class="mt-4">
+    <div class="mb-3">
+        <label for="file" class="form-label">Upload Your Dataset (CSV format):</label>
+        <input type="file" id="file" name="file" class="form-control" accept=".csv" required>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Upload Dataset</button>
+</form>
+{% endblock %}

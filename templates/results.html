@@ -1,46 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Meta-Learning Results</title>
+    <title>Results</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .scatter-container {
+            width: 100%;
+            margin: auto;
+            text-align: center;
+        }
+        #scatter-plot {
+            margin: auto;
+            width: 90%;
+            height: 600px;
+        }
+        .table-container {
+            width: 90%;
+            margin: auto;
+            overflow-x: auto;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        table, th, td {
-            border: 1px solid black;
-        }
         th, td {
             padding: 10px;
+            border: 1px solid #ddd;
             text-align: left;
         }
+        th {
+            background-color: #f4f4f4;
+        }
     </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-    <h1>Meta-Learning Results</h1>
-    <h2>Scatter Plot</h2>
-    <img src="data:image/png;base64,{{ scatter_plot }}" alt="Scatter Plot">
+    <div class="scatter-container">
+        <h2>Scatter Plot</h2>
+        <div id="scatter-plot"></div>
+        <script>
+            var scatterPlot = {{ scatter_plot | safe }};
+            Plotly.newPlot('scatter-plot', scatterPlot.data, scatterPlot.layout);
+        </script>
+    </div>
 
-    <h2>Predictions Table</h2>
-    <table>
-        <thead>
-            <tr>
-                {% for column in table_columns %}
-                <th>{{ column }}</th>
+    <div class="table-container">
+        <h2>Predictions Table</h2>
+        <table>
+            <thead>
+                <tr>
+                    {% for column in table_columns %}
+                    <th>{{ column }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in table_data %}
+                <tr>
+                    {% for cell in row %}
+                    <td>{{ cell }}</td>
+                    {% endfor %}
+                </tr>
                 {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in table_data %}
-            <tr>
-                {% for cell in row %}
-                <td>{{ cell }}</td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <a href="/download" download>Download Full Results</a>
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>
