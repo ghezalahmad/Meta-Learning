@@ -9,9 +9,6 @@ import plotly.express as px
 import torch.optim as optim  # Import PyTorch's optimizer module
 from skopt import gp_minimize
 from skopt.space import Real
-import json
-import plotly.graph_objects as go
-
 
 # Set up directories
 UPLOAD_FOLDER = "uploads"
@@ -159,6 +156,54 @@ def calculate_utility(predictions, uncertainties, apriori, curiosity, weights, m
     )
     return utility
 
+def objective(params):
+    """
+    Objective function for Bayesian optimization.
+    
+    Args:
+        params (list): Parameters being optimized [weights, curiosity, thresholds].
+
+    Returns:
+        float: Negative mean utility score (to maximize utility).
+    """
+    # Unpack parameters
+    weights, curiosity, thresholds = params[:-1], params[-2], params[-1]
+
+    # Calculate utility scores using current parameters
+    utility_scores = calculate_utility(
+        predictions,
+        uncertainty_scores,
+        apriori_infer_scaled,
+        curiosity=curiosity,
+        weights=weights,
+        max_or_min=max_or_min_targets,
+        thresholds=thresholds
+    )
+
+    # Return negative mean utility (because skopt minimizes by default)
+    return -np.mean(utility_scores)
+
+def optimize_parameters():
+    """
+    Perform Bayesian optimization to find the best weights, curiosity, and thresholds.
+    """
+    # Define search space for parameters
+    space = [
+        Real(0.1, 5.0, name="weights"),         # Weight range
+        Real(-2.0, 2.0, name="curiosity"),      # Curiosity range
+        Real(0.0, 1.0, name="thresholds")       # Threshold range
+    ]
+
+    # Run Bayesian optimization
+    result = gp_minimize(
+        objective,       # Objective function
+        dimensions=space,  # Search space
+        n_calls=20,        # Number of evaluations
+        random_state=42    # Seed for reproducibility
+    )
+
+    # Return optimized parameters
+    return result.x, -result.fun  # Optimized params and max utility
 
 
 # Novelty calculation
@@ -187,128 +232,47 @@ def plot_scatter_matrix(result_df, target_columns, utility_scores):
     fig.update_traces(diagonal_visible=False)
     return fig
 
-
-def restore_session(session_data):
-    """
-    Restore session variables from a session file.
-    Args:
-        session_data (dict): Parsed JSON data from the session file.
-    Returns:
-        dict: Restored session variables.
-    """
-    restored_session = {
-        "input_columns": session_data.get("input_columns", []),
-        "target_columns": session_data.get("target_columns", []),
-        "apriori_columns": session_data.get("apriori_columns", []),
-        "weights_targets": session_data.get("weights_targets", []),
-        "weights_apriori": session_data.get("weights_apriori", []),
-        "thresholds_targets": session_data.get("thresholds_targets", []),
-        "thresholds_apriori": session_data.get("thresholds_apriori", []),
-        "curiosity": session_data.get("curiosity", 0.0),
-        "results": pd.DataFrame(session_data.get("results", [])) if "results" in session_data else pd.DataFrame(),
-    }
-    return restored_session
-
-def create_tsne_plot(data, features, utility_col="Utility", perplexity=20, learning_rate=200):
-    """
-    Create a t-SNE plot for the dataset.
-
-    Args:
-        data (pd.DataFrame): The dataset with features and utility.
-        features (list): The list of feature column names.
-        utility_col (str): Column name representing utility scores.
-        perplexity (int): Perplexity parameter for t-SNE.
-        learning_rate (int): Learning rate for t-SNE optimization.
-
-    Returns:
-        plotly.graph_objects.Figure: A scatter plot in t-SNE space.
-    """
-    # Validate input data
-    if len(features) == 0:
-        raise ValueError("No features selected for t-SNE.")
-
-    if utility_col not in data.columns:
-        raise ValueError(f"The column '{utility_col}' is not in the dataset.")
-
-    tsne = TSNE(
-        n_components=2,
-        perplexity=min(perplexity, len(data) - 1),
-        n_iter=350,
-        random_state=42,
-        init="pca",
-        learning_rate=learning_rate,
-    )
-
-    # Fit t-SNE on the selected feature columns
-    tsne_result = tsne.fit_transform(data[features])
-
-    # Create a dataframe with t-SNE results
-    tsne_result_df = pd.DataFrame({
-        "t-SNE-1": tsne_result[:, 0],
-        "t-SNE-2": tsne_result[:, 1],
-        utility_col: data[utility_col].values,
-    })
-
-    # Generate scatter plot
-    fig = px.scatter(
-        tsne_result_df,
-        x="t-SNE-1",
-        y="t-SNE-2",
-        color=utility_col,
-        title="t-SNE Visualization of Data",
-        labels={"t-SNE-1": "t-SNE Dimension 1", "t-SNE-2": "t-SNE Dimension 2"},
-        color_continuous_scale="Viridis",
-    )
-
-    fig.update_traces(marker=dict(size=7))
-    fig.update_layout(height=800, legend_title_text="Utility")
-    return fig
-
-
-
-
 # Streamlit layout
 st.set_page_config(page_title="MAML Dashboard", layout="wide")
 st.title("MAML Dashboard")
 
 # Sidebar Configuration
+# Sidebar: Enable Bayesian Optimization
+enable_optimization = st.sidebar.checkbox(
+    "Enable Bayesian Optimization",
+    value=False,
+    help="Check this to optimize weights, curiosity, and thresholds using Bayesian optimization."
+)
 
 
-
-
-# Model Configuration Section
 # Model Configuration Section
 with st.sidebar.expander("Model Configuration", expanded=True):  # Expanded by default
-    # Hidden Size
     hidden_size = st.slider(
         "Hidden Size (MAML):", 
         min_value=64, 
         max_value=256, 
         step=16, 
-        value=hidden_size if 'hidden_size' in locals() else 128,  # Use session data if available
+        value=128, 
         help="The number of neurons in the hidden layers of the MAML model. Larger sizes capture more complex patterns but increase training time."
     )
 
-    # Learning Rate
     learning_rate = st.slider(
         "Learning Rate:", 
         min_value=0.001, 
         max_value=0.1, 
         step=0.001, 
-        value=learning_rate if 'learning_rate' in locals() else 0.01,  # Use session data if available
+        value=0.01, 
         help="The step size for updating model weights during optimization. Higher values accelerate training but may overshoot optimal solutions."
     )
 
-    # Curiosity
     curiosity = st.slider(
         "Curiosity (Explore vs Exploit):", 
         min_value=-2.0, 
         max_value=2.0, 
-        value=curiosity if 'curiosity' in locals() else 0.0,  # Use session data if available
+        value=0.0, 
         step=0.1, 
         help="Balances exploration and exploitation. Negative values focus on high-confidence predictions, while positive values prioritize exploring uncertain regions."
     )
-
 
 # Learning Rate Scheduler Section
 with st.sidebar.expander("Learning Rate Scheduler", expanded=False):  # Collapsed by default
@@ -384,48 +348,6 @@ with st.sidebar.expander("Meta-Training Configuration", expanded=False):  # Coll
         help="The number of tasks (subsets of the dataset) simulated during each epoch of meta-training. More tasks improve generalization but increase computation."
     )
 
-# Sidebar: Restore Session
-# Sidebar: Restore Session
-st.sidebar.header("Restore Session")
-uploaded_session = st.sidebar.file_uploader(
-    "Upload Session File (JSON):",
-    type=["json"],
-    help="Upload a previously saved session file to restore your configuration."
-)
-
-if uploaded_session:
-    try:
-        # Load and parse the uploaded JSON session file
-        session_data = json.load(uploaded_session)
-        restored_session = restore_session(session_data)
-        
-        # Apply restored session values
-        input_columns = restored_session["input_columns"]
-        target_columns = restored_session["target_columns"]
-        apriori_columns = restored_session["apriori_columns"]
-        weights_targets = restored_session["weights_targets"]
-        weights_apriori = restored_session["weights_apriori"]
-        thresholds_targets = restored_session["thresholds_targets"]
-        thresholds_apriori = restored_session["thresholds_apriori"]
-        curiosity = restored_session["curiosity"]
-        result_df = restored_session["results"]
-
-        st.sidebar.success("Session restored successfully!")
-
-        # Display restored dataset and results (optional)
-        if not result_df.empty:
-            st.write("### Restored Results Table")
-            st.dataframe(result_df, use_container_width=True)
-
-    except Exception as e:
-        st.sidebar.error(f"Failed to restore session: {str(e)}")
-
-
-# File upload
-# Initialize input, target, and apriori columns globally
-input_columns = []
-target_columns = []
-apriori_columns = []
 
 # File upload
 uploaded_file = st.file_uploader("Upload Dataset (CSV format):", type=["csv"])
@@ -439,27 +361,12 @@ if uploaded_file:
 
     # Feature selection
     st.header("Select Features")
-    input_columns = st.multiselect(
-        "Input Features:",
-        options=data.columns.tolist(),
-        default=input_columns  # Initialized as empty list above
-    )
-
-    remaining_columns = [col for col in data.columns if col not in input_columns]
-    target_columns = st.multiselect(
-        "Target Properties:",
-        options=remaining_columns,
-        default=target_columns  # Initialized as empty list above
-    )
-
+    columns = data.columns.tolist()
+    input_columns = st.multiselect("Input Features:", options=columns)
+    remaining_columns = [col for col in columns if col not in input_columns]
+    target_columns = st.multiselect("Target Properties:", options=remaining_columns)
     remaining_columns_aprior = [col for col in remaining_columns if col not in target_columns]
-    apriori_columns = st.multiselect(
-        "A Priori Properties:",
-        options=remaining_columns_aprior,
-        default=apriori_columns  # Initialized as empty list above
-    )
-
-
+    apriori_columns = st.multiselect("A Priori Properties (optional):", options=remaining_columns_aprior)
 
     # Target settings
     st.header("Target Settings")
@@ -660,7 +567,6 @@ if uploaded_file:
                 uncertainty_scores = uncertainty_scores[:num_samples]
 
                 # Create result dataframe (exclude training samples)
-                # global result_df
                 result_df = pd.DataFrame({
                     "Idx_Sample": idx_samples,
                     "Utility": utility_scores,
@@ -670,28 +576,6 @@ if uploaded_file:
                     **inputs_infer.reset_index(drop=True).to_dict(orient="list"),
                 }).sort_values(by="Utility", ascending=False).reset_index(drop=True)
 
-                # After training or inference
-                if uploaded_file and "result_df" in globals() and not result_df.empty:
-                    st.header("Generate t-SNE Plot")
-                    if st.button("Generate t-SNE Plot"):
-                        try:
-                            # Validate the required columns
-                            if "Utility" not in result_df.columns or len(input_columns) == 0:
-                                st.error("Please ensure the dataset has utility scores and input features.")
-                            else:
-                                # Generate the t-SNE plot
-                                tsne_plot = create_tsne_plot(
-                                    data=result_df,
-                                    features=input_columns,
-                                    utility_col="Utility",
-                                )
-                                st.plotly_chart(tsne_plot)
-                        except Exception as e:
-                            st.error(f"An error occurred while generating the t-SNE plot: {str(e)}")
-
-
-                
-                
                 # Display results
                 st.write("### Results Table")
                 st.dataframe(result_df, use_container_width=True)
@@ -723,37 +607,6 @@ if uploaded_file:
                         color_continuous_scale="Viridis"
                     )
                     st.plotly_chart(single_scatter_fig)
-                # Radar Chart
-                st.write("### Radar Chart: Performance Overview")
-                categories = target_columns + ["Utility", "Novelty", "Uncertainty"]
-                values = [predictions[:, i].mean() for i in range(len(target_columns))] + [
-                    utility_scores.mean(), novelty_scores.mean(), uncertainty_scores.mean()
-                ]
-                radar_fig = go.Figure()
-                radar_fig.add_trace(go.Scatterpolar(r=values, theta=categories, fill='toself', name='Metrics'))
-                radar_fig.update_layout(polar=dict(radialaxis=dict(visible=True)), showlegend=False)
-                st.plotly_chart(radar_fig)
-
-                 # Export Session Data
-                session_data = {
-                    "input_columns": input_columns,
-                    "target_columns": target_columns,
-                    "apriori_columns": apriori_columns,
-                    "weights_targets": weights_targets,
-                    "weights_apriori": weights_apriori,
-                    "thresholds_targets": thresholds_targets,
-                    "thresholds_apriori": thresholds_apriori,
-                    "curiosity": curiosity,
-                
-                    "results": result_df.to_dict(orient="records")
-                }
-                session_json = json.dumps(session_data, indent=4)
-                st.download_button(
-                    label="Download Session as JSON",
-                    data=session_json,
-                    file_name="session.json",
-                    mime="application/json"
-                )
 
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
